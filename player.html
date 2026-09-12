@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>TV</title>
+<!--
+  house_tv hosted YouTube player. Upload this ONE file to any https web host and set
+  Config.YouTubePlayerUrl in config.lua to its address. It takes ?v=<id>&t=<sec>&vol=<0-100>
+  &paused=<0|1> and is otherwise identical to the page the game server serves itself.
+
+  Why it exists: YouTube's embedded player refuses label-licensed music unless the page
+  embedding it lives on a real https domain. The game server can only serve http on an IP.
+-->
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden}
+  #p,iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+</style></head>
+<body>
+<div id="p"></div>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+(function(){
+  function q(name, fallback){
+    var m = (window.location.search || '').match(new RegExp('[?&]' + name + '=([^&]*)'));
+    return m ? decodeURIComponent(m[1]) : fallback;
+  }
+  var videoId = (q('v', '') || '').replace(/[^A-Za-z0-9_-]/g, '');
+  var player = null, startAt = parseInt(q('t', '0'), 10) || 0;
+  var wanted = Math.max(0, Math.min(100, parseInt(q('vol', '100'), 10) || 0));
+  var startPaused = q('paused', '0') === '1';
+
+  window.onYouTubeIframeAPIReady = function(){
+    if (!videoId) return;
+    player = new YT.Player('p', {
+      videoId: videoId,
+      playerVars: { autoplay:1, playsinline:1, rel:0, modestbranding:1, controls:0, fs:0 },
+      events: {
+        onReady: function(e){
+          e.target.setVolume(wanted);
+          e.target.seekTo(startAt, true);
+          if (startPaused) { e.target.pauseVideo(); } else { e.target.playVideo(); }
+        }
+      }
+    });
+  };
+
+  window.addEventListener('message', function(ev){
+    var d = ev.data || {};
+    if (d.type === 'volume') {
+      wanted = Math.round(Math.max(0, Math.min(1, Number(d.value))) * 100);
+      if (player && player.setVolume) player.setVolume(wanted);
+      return;
+    }
+    if (!player || !player.seekTo) return;
+    if (d.type === 'sync') {
+      var cur = player.getCurrentTime ? player.getCurrentTime() : 0;
+      if (Math.abs(cur - Number(d.value)) > 2.0) player.seekTo(Number(d.value), true);
+    } else if (d.type === 'pause')  { player.pauseVideo();
+    } else if (d.type === 'resume') { player.playVideo(); }
+  });
+})();
+</script>
+</body></html>
